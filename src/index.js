@@ -11,7 +11,7 @@ export class GameView {
             }
         `;
 
-        const fragmentShaderSrc = `
+        this.fragmentShaderSrc = `
             varying highp vec2 textureCoordinate;
             uniform sampler2D external_texture;
             void main()
@@ -19,6 +19,8 @@ export class GameView {
             gl_FragColor = texture2D(external_texture, textureCoordinate);
             }
         `;
+
+        this.interval = null;
     }
 
     makeShader = (gl, type, src) => {
@@ -28,7 +30,7 @@ export class GameView {
         return shader;
     }
     
-    createTexture = (gl) => {
+    createTexture(gl) {
         const tex = gl.createTexture();
       
         const texPixels = new Uint8Array([0, 0, 255, 255]);
@@ -82,8 +84,8 @@ export class GameView {
     }
     
     createProgram = (gl) => {
-        const vertexShader = makeShader(gl, gl.VERTEX_SHADER, this.vertexShaderSrc);
-        const fragmentShader = makeShader(gl, gl.FRAGMENT_SHADER, this.fragmentShaderSrc);
+        const vertexShader = this.makeShader(gl, gl.VERTEX_SHADER, this.vertexShaderSrc);
+        const fragmentShader = this.makeShader(gl, gl.FRAGMENT_SHADER, this.fragmentShaderSrc);
       
         const program = gl.createProgram();
       
@@ -97,10 +99,40 @@ export class GameView {
       
         return { program, vloc, tloc };
     }
+      
+    createStuff(gl) {
+        const tex = this.createTexture(gl);
+        const { program, vloc, tloc } = this.createProgram(gl);
+        const { vertexBuff, texBuff } = this.createBuffers(gl);
+    
+        gl.useProgram(program);
+    
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+    
+        gl.uniform1i(gl.getUniformLocation(program, 'external_texture'), 0);
+    
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
+        gl.vertexAttribPointer(vloc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(vloc);
+    
+        gl.bindBuffer(gl.ARRAY_BUFFER, texBuff);
+        gl.vertexAttribPointer(tloc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(tloc);
+    
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    }
+
+    render(gl, gameView) {
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.finish();
+    
+        let render = () => {};
+        gameView.animationFrame = requestAnimationFrame(render);
+    }
     
     createGameView = (canvas) => {
         this.canvas = canvas;
-        const gl = canvas.getContext('webgl', {
+        const gl = this.canvas.getContext('webgl', {
             antialias: false,
             depth: false,
             stencil: false,
@@ -108,32 +140,6 @@ export class GameView {
             desynchronized: true,
             failIfMajorPerformanceCaveat: false,
         });
-      
-        let render = () => {};
-      
-        function createStuff() {
-            const tex = createTexture(gl);
-            const { program, vloc, tloc } = createProgram(gl);
-            const { vertexBuff, texBuff } = createBuffers(gl);
-        
-            gl.useProgram(program);
-        
-            gl.bindTexture(gl.TEXTURE_2D, tex);
-        
-            gl.uniform1i(gl.getUniformLocation(program, 'external_texture'), 0);
-        
-            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
-            gl.vertexAttribPointer(vloc, 2, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(vloc);
-        
-            gl.bindBuffer(gl.ARRAY_BUFFER, texBuff);
-            gl.vertexAttribPointer(tloc, 2, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(tloc);
-        
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-        
-            render();
-        }
       
         const gameView = {
             canvas,
@@ -146,14 +152,11 @@ export class GameView {
             },
         };
       
-        render = () => {
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-            gl.finish();
-        
-            gameView.animationFrame = requestAnimationFrame(render);
-        };
-      
-        createStuff();
+        this.createStuff(gl);
+
+        this.interval = setInterval(() => {
+            this.render(gl, gameView);
+        }, 0);
       
         return gameView;
     }
@@ -162,6 +165,10 @@ export class GameView {
         if (this.canvas) {
             if (this.canvas.style.display != "none") {
                 this.canvas.style.display = "none";
+            }
+
+            if (this.interval) {
+                clearInterval(this.interval);
             }
         }
     }
